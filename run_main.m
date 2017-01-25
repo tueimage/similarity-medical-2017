@@ -92,22 +92,61 @@ for i = 1:length(datasetFiles)
        end
     end
  end
-%%
+%% Create meta-dataset
 
-for i=1:size(resClasf,1)
-    resClasf(i,:) = tiedrank(resClasf(i,:));
+metaDataAcc = [];
+metaLabelName = [];
+metaLabelTrainSize = [];
+
+for i = 1:length(datasetFiles)
+    samplingFiles = dir(fullfile(samplingPath, [datasetFiles{i} '_sampling*']));
+    
+   for j=1:numel(samplingFiles)
+       
+       fileNameParts = strsplit(samplingFiles(j).name, '_');
+       metaLabelName = strvcat(metaLabelName, fileNameParts{1});              %Notice the hard-coded assumption about the file name structure!
+       fileNameParts = strsplit(fileNameParts{7},'.');
+       metaLabelTrainSize = [metaLabelTrainSize; str2num(fileNameParts{1})];
+       
+       acc=nan(1, length(uClasfs)); %initialize vectors for metadata of this particular dataset
+      
+       
+       resultFiles = dir(fullfile(resultPath, [samplingFiles(j).name '*']));
+       assert(length(resultFiles) == length(uClasfs));
+       
+       for u=1:length(resultFiles)
+       
+       
+           %fileName = fullfile(resultPath, [samplingFiles(j).name '_' getname(uClasfs{u}) '.mat']);
+           fileName = fullfile(resultPath, [resultFiles(u).name]);
+           
+           load(fileName, 'resData'); 
+           acc(u) = 1-testc(resData);             %PRTools reports errors
+       end
+       metaDataAcc = [metaDataAcc; acc];
+    end
 end
 
-whichData = repmat(trainingSizesPerClass(:),numTrainTest,1);
-whichData = [whichData; whichData+1];
+save('metaDataTry1.mat', 'metaDataAcc',  'metaLabelName', 'metaLabelTrainSize');
+ 
+%% Get meta-dataset, embed it 
 
-embedded = tsne(+resClasf);
+load('metaDataTry1.mat','metaDataAcc',  'metaLabelName', 'metaLabelTrainSize')
+
+metaDataRank = nan(size(metaDataAcc));
+
+%Create extra dataset based on rank
+for i=1:size(metaDataAcc,1)
+    metaDataRank(i,:) = tiedrank(metaDataAcc(i,:));
+end
+
+metaLabel = [metaLabelName num2str(metaLabelTrainSize)];
 
 %%
-embeddedData = prdataset(embedded, whichData);
 
-scatterd(embeddedData,'legend');
+tsneRank = tsne(+metaDataRank);  %tSNE is stochastic, need to actually do this a few times and select embedding with lowest loss
+tsneRank = prdataset(tsneRank, metaLabel);
 
-
+scatterd(tsneRank,'legend');
 
 
