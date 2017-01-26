@@ -5,8 +5,9 @@ samplingPath = 'C:\Users\Veronika\Dropbox\Papers\MICCAI 2017\sampling\';
 resultPath = 'C:\Users\Veronika\Dropbox\Papers\MICCAI 2017\result\';
 
 
-datasetFiles = {'AVClassificationDRIVE','VesselSegmentationDRIVE','MitkoNorm','MitkoNoNorm'};
+%datasetFiles = {'AVClassificationDRIVE','VesselSegmentationDRIVE','MitkoNorm','MitkoNoNorm','MicroaneurysmDetectionEophtha'};
 
+datasetFiles = {'AVClassificationDRIVE','VesselSegmentationDRIVE','MitkoNorm','MitkoNoNorm'};
 
 uClasfs = {loglc2([],1e-3),loglc2([],1e-1),loglc2([],1),loglc2([],1e3), randomforestc2([],3), randomforestc2([],10), randomforestc2([],30), randomforestc2([],100)};
 
@@ -44,16 +45,17 @@ for i = 1:length(datasetFiles)
         indexSubTestInst = getBalancedSample(indexTestInst, y(indexTestInst), testSizePerClass);
         
         for ts = 1:numel(trainingSizesPerClass)
+            
+            s = sprintf('_sampling_%d_test_%d_train_%d', ntt,testSizePerClass,trainingSizesPerClass(ts));
             fileName = fullfile(samplingPath, [datasetFiles{i} s '.mat']);
             
             
             if ~exist(fileName, 'file') || flagOverwrite == 1
 
                 indexSubTrainInst = getBalancedSample(indexTrainInst, y(indexTrainInst), trainingSizesPerClass(ts));
-                s = sprintf('_sampling_%d_test_%d_train_%d', ntt,testSizePerClass,trainingSizesPerClass(ts));
                 save(fileName, 'indexTrainBagId','indexTestBagId', 'indexSubTrainInst','indexSubTestInst');
             else
-                disp(['File ' fileName ' already exists, skipping']);
+                %disp(['File ' fileName ' already exists, skipping']);
             end
 
         end    
@@ -104,7 +106,7 @@ for i = 1:length(datasetFiles)
    for j=1:numel(samplingFiles)
        
        fileNameParts = strsplit(samplingFiles(j).name, '_');
-       metaLabelName = strvcat(metaLabelName, fileNameParts{1});              %Notice the hard-coded assumption about the file name structure!
+       metaLabelName = strvcat(metaLabelName, fileNameParts{1});              %TODO: Notice the hard-coded assumption about the file name structure!
        fileNameParts = strsplit(fileNameParts{7},'.');
        metaLabelTrainSize = [metaLabelTrainSize; str2num(fileNameParts{1})];
        
@@ -124,8 +126,12 @@ for i = 1:length(datasetFiles)
            acc(u) = 1-testc(resData);             %PRTools reports errors
        end
        metaDataAcc = [metaDataAcc; acc];
+       
+      %TODO: save accuracies of each database separately, so that we can
+      %easily choose later which databases to include! 
     end
 end
+
 
 save('metaDataTry1.mat', 'metaDataAcc',  'metaLabelName', 'metaLabelTrainSize');
  
@@ -140,13 +146,27 @@ for i=1:size(metaDataAcc,1)
     metaDataRank(i,:) = tiedrank(metaDataAcc(i,:));
 end
 
-metaLabel = [metaLabelName num2str(metaLabelTrainSize)];
+%metaLabel = [metaLabelName num2str(metaLabelTrainSize)];
 
 %%
 
-tsneRank = tsne(+metaDataRank);  %tSNE is stochastic, need to actually do this a few times and select embedding with lowest loss
-tsneRank = prdataset(tsneRank, metaLabel);
+tsneAcc = tsne(+metaDataAcc); 
+tsneRank = tsne(+metaDataRank,[],[],5);  %TODO: tSNE is stochastic, need to actually do this a few times and select embedding with lowest loss
 
-scatterd(tsneRank,'legend');
+
+tsneRank = prdataset(tsneRank, metaLabelName);
+tsneAcc = prdataset(tsneAcc, metaLabelName);
+
+
+
+ml = unique(metaLabelName, 'rows');
+colors = [0.75 0 0; 0 0.75 0; 0 0 0.75; 0.75 0.5 0; 0.5 0 0.75];
+ 
+for i=1:size(ml,1)
+    c = seldat(tsneRank, ml(i,:)); 
+    scatter(+c(:,1), +c(:,2), 'MarkerEdgeColor', colors(i,:), 'MarkerFaceColor', colors(i,:));
+    hold on;
+end
+legend(ml);
 
 
