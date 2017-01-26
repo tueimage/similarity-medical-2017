@@ -3,13 +3,15 @@
 datasetPath = 'C:\Users\Veronika\Dropbox\Papers\MICCAI 2017\data\';
 samplingPath = 'C:\Users\Veronika\Dropbox\Papers\MICCAI 2017\sampling\';
 resultPath = 'C:\Users\Veronika\Dropbox\Papers\MICCAI 2017\result\';
+metaPath = 'C:\Users\Veronika\Dropbox\Papers\MICCAI 2017\bmpv\metadata\';
+
+datasetFiles = {'AVClassificationDRIVE','VesselSegmentationDRIVE','MitkoNorm','MitkoNoNorm','MicroaneurysmDetectionEophtha'};
+
+uClasfs = {ldc, qdc, loglc2([],1e-3),loglc2([],1e-1),loglc2([],1),loglc2([],1e3)}; % randomforestc2([],3)*classc, randomforestc2([],10)*classc, randomforestc2([],30)*classc, randomforestc2([],100)*classc};
 
 
-%datasetFiles = {'AVClassificationDRIVE','VesselSegmentationDRIVE','MitkoNorm','MitkoNoNorm','MicroaneurysmDetectionEophtha'};
+%uClasfs = {randomforestc2([],3)*classc, randomforestc2([],10)*classc, randomforestc2([],30)*classc, randomforestc2([],100)*classc};
 
-datasetFiles = {'AVClassificationDRIVE','VesselSegmentationDRIVE','MitkoNorm','MitkoNoNorm'};
-
-uClasfs = {loglc2([],1e-3),loglc2([],1e-1),loglc2([],1),loglc2([],1e3), randomforestc2([],3), randomforestc2([],10), randomforestc2([],30), randomforestc2([],100)};
 
 numBaggedCopies = 10;
 
@@ -17,7 +19,7 @@ numTrainTest = 5;
 trainingSizesPerClass = [100, 300, 1000, 3000, 10000];
 testSizePerClass = 10000;
 
-flagOverwrite = 0; %Do not recompute results (only needed if there is a bug etc)
+flagOverwrite = 0; %If = 0, do not recompute results (only needed if there is a bug etc)
 
 
 %% Generate samplings
@@ -96,12 +98,13 @@ for i = 1:length(datasetFiles)
  end
 %% Create meta-dataset
 
-metaDataAcc = [];
-metaLabelName = [];
-metaLabelTrainSize = [];
 
 for i = 1:length(datasetFiles)
     samplingFiles = dir(fullfile(samplingPath, [datasetFiles{i} '_sampling*']));
+    
+    metaLabelName = [];
+    metaLabelTrainSize = [];
+    metaDataOfDatabase = [];
     
    for j=1:numel(samplingFiles)
        
@@ -114,7 +117,7 @@ for i = 1:length(datasetFiles)
       
        
        resultFiles = dir(fullfile(resultPath, [samplingFiles(j).name '*']));
-       assert(length(resultFiles) == length(uClasfs));
+       %assert(length(resultFiles) == length(uClasfs));
        
        for u=1:length(resultFiles)
        
@@ -125,45 +128,65 @@ for i = 1:length(datasetFiles)
            load(fileName, 'resData'); 
            acc(u) = 1-testc(resData);             %PRTools reports errors
        end
-       metaDataAcc = [metaDataAcc; acc];
-       
-      %TODO: save accuracies of each database separately, so that we can
-      %easily choose later which databases to include! 
-    end
+       metaDataOfDatabase = [metaDataOfDatabase; acc];
+   end
+   save(fullfile(metaPath, datasetFiles{i}), 'metaDataOfDatabase', 'uClasfs','metaLabelName', 'metaLabelTrainSize');
 end
 
-
-save('metaDataTry1.mat', 'metaDataAcc',  'metaLabelName', 'metaLabelTrainSize');
- 
 %% Get meta-dataset, embed it 
 
-load('metaDataTry1.mat','metaDataAcc',  'metaLabelName', 'metaLabelTrainSize')
 
-metaDataRank = nan(size(metaDataAcc));
+datasetFilesToInclude = {'AVClassificationDRIVE','VesselSegmentationDRIVE','MitkoNorm','MitkoNoNorm','MicroaneurysmDetectionEophtha'};
+%datasetFilesToInclude = {'AVClassificationDRIVE','VesselSegmentationDRIVE','MitkoNorm','MicroaneurysmDetectionEophtha'};
+
+metaDataAll = [];
+metaLabelNameAll = [];
+
+for i = 1:length(datasetFilesToInclude)
+   load(fullfile(metaPath, datasetFilesToInclude{i}), 'metaDataOfDatabase', 'uClasfs','metaLabelName');
+   metaDataAll = [metaDataAll; metaDataOfDatabase];
+   metaLabelNameAll = strvcat(metaLabelNameAll, metaLabelName);
+end
+metaDataRank = nan(size(metaDataAll));
+
+
 
 %Create extra dataset based on rank
-for i=1:size(metaDataAcc,1)
-    metaDataRank(i,:) = tiedrank(metaDataAcc(i,:));
+for i=1:size(metaDataAll,1)
+    metaDataRank(i,:) = tiedrank(metaDataAll(i,:));
 end
-
-%metaLabel = [metaLabelName num2str(metaLabelTrainSize)];
 
 %%
 
-tsneAcc = tsne(+metaDataAcc); 
+tsneAcc = tsne(+metaDataAll); 
 tsneRank = tsne(+metaDataRank,[],[],5);  %TODO: tSNE is stochastic, need to actually do this a few times and select embedding with lowest loss
 
-
-tsneRank = prdataset(tsneRank, metaLabelName);
-tsneAcc = prdataset(tsneAcc, metaLabelName);
-
+tsneRank = prdataset(tsneRank, metaLabelNameAll);
+tsneAcc = prdataset(tsneAcc, metaLabelNameAll);
 
 
-ml = unique(metaLabelName, 'rows');
+
+ml = unique(metaLabelNameAll, 'rows');
 colors = [0.75 0 0; 0 0.75 0; 0 0 0.75; 0.75 0.5 0; 0.5 0 0.75];
  
 for i=1:size(ml,1)
     c = seldat(tsneRank, ml(i,:)); 
+    scatter(+c(:,1), +c(:,2), 'MarkerEdgeColor', colors(i,:), 'MarkerFaceColor', colors(i,:));
+    hold on;
+end
+legend(ml);
+
+%%
+%Compute distances, set diagonal to 0 so MDS doesn't complain
+distMetaDataAll = sqeucldistm(+metaDataRank,+metaDataRank);
+distMetaDataAll(eye(size(distMetaDataAll))==1) = 0;
+
+mdsAcc = distMetaDataAll*mds(distMetaDataAll);
+mdsAcc = prdataset(+mdsAcc, metaLabelNameAll);
+
+
+for i=1:size(ml,1)
+    c = seldat(mdsAcc, ml(i,:)); 
     scatter(+c(:,1), +c(:,2), 'MarkerEdgeColor', colors(i,:), 'MarkerFaceColor', colors(i,:));
     hold on;
 end
