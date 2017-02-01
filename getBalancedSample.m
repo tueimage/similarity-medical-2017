@@ -1,6 +1,7 @@
 function sampledix = getBalancedSample(initialix, y, sizePerClass)
 
 
+
 classLabels = unique(y);
 numClasses = numel(classLabels);
 

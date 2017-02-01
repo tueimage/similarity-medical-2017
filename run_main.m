@@ -5,21 +5,23 @@ samplingPath = 'C:\Users\Veronika\Dropbox\Papers\MICCAI 2017\sampling\';
 resultPath = 'C:\Users\Veronika\Dropbox\Papers\MICCAI 2017\result\';
 metaPath = 'C:\Users\Veronika\Dropbox\Papers\MICCAI 2017\bmpv\metadata\';
 
-datasetFiles = {'AVClassificationDRIVE','VesselSegmentationDRIVE','MitkoNorm','MitkoNoNorm','MicroaneurysmDetectionEophtha'};
+%datasetFiles = {'AVClassificationDRIVE','VesselSegmentationDRIVE','MitkoNorm','MitkoNoNorm','MicroaneurysmDetectionEophtha','MSLesionUpsampledCHB_copy','MSLesionUpsampledUNC_copy'};
 
-uClasfs = {ldc, qdc, loglc2([],1e-3),loglc2([],1e-1),loglc2([],1),loglc2([],1e3)}; % randomforestc2([],3)*classc, randomforestc2([],10)*classc, randomforestc2([],30)*classc, randomforestc2([],100)*classc};
+datasetFiles = {'MSLesionUpsampledCHB_copy','MSLesionUpsampledUNC_copy'};
+
+
+
+uClasfs = {nmc, ldc, qdc, loglc2([],1e-3),loglc2([],1e-1),loglc2([],1),loglc2([],1e3)}; % randomforestc2([],3)*classc, randomforestc2([],10)*classc, randomforestc2([],30)*classc, randomforestc2([],100)*classc};
 
 
 %uClasfs = {randomforestc2([],3)*classc, randomforestc2([],10)*classc, randomforestc2([],30)*classc, randomforestc2([],100)*classc};
 
 
-numBaggedCopies = 10;
-
-numTrainTest = 5;
+numTrainTest = 10;
 trainingSizesPerClass = [100, 300, 1000, 3000, 10000];
 testSizePerClass = 10000;
 
-flagOverwrite = 0; %If = 0, do not recompute results (only needed if there is a bug etc)
+flagOverwrite = 1; %If = 0, do not recompute results (only needed if there is a bug etc)
 
 
 %% Generate samplings
@@ -28,14 +30,15 @@ for i = 1:length(datasetFiles)
     load(fullfile(datasetPath, [datasetFiles{i} '.mat']), 'y','id');
     
     numClasses = numel(unique(y));
-    numSubjects = numel(unique(id));
+    uniqueSubjects = unique(id);
+    numSubjects = numel(uniqueSubjects);
     numTrainSubjects = floor(0.7*numSubjects);
 
     indexTrainBagId = nan(numTrainTest, numTrainSubjects);
     indexTestBagId = nan(numTrainTest, numSubjects-numTrainSubjects);
     
     for ntt=1:numTrainTest
-        permutedBagId = id(randperm(numSubjects));
+        permutedBagId = uniqueSubjects(randperm(numSubjects));
 
         indexTrainBagId = uint8(permutedBagId(1:numTrainSubjects));
         indexTestBagId = uint8(permutedBagId(numTrainSubjects+1:end));
@@ -55,6 +58,12 @@ for i = 1:length(datasetFiles)
             if ~exist(fileName, 'file') || flagOverwrite == 1
 
                 indexSubTrainInst = getBalancedSample(indexTrainInst, y(indexTrainInst), trainingSizesPerClass(ts));
+                
+                try
+                    assert(numel(unique(y(indexSubTrainInst))) == numClasses);
+                catch
+                        keyboard
+                end
                 save(fileName, 'indexTrainBagId','indexTestBagId', 'indexSubTrainInst','indexSubTestInst');
             else
                 %disp(['File ' fileName ' already exists, skipping']);
@@ -99,6 +108,9 @@ for i = 1:length(datasetFiles)
 %% Create meta-dataset
 
 
+datasetFiles = {'AVClassificationDRIVE','VesselSegmentationDRIVE','MitkoNorm','MitkoNoNorm','MicroaneurysmDetectionEophtha','MSLesionUpsampledCHB_copy','MSLesionUpsampledUNC_copy'};
+
+
 for i = 1:length(datasetFiles)
     samplingFiles = dir(fullfile(samplingPath, [datasetFiles{i} '_sampling*']));
     
@@ -135,9 +147,12 @@ end
 
 %% Get meta-dataset, embed it 
 
+%datasetFiles = {'AVClassificationDRIVE','VesselSegmentationDRIVE','MitkoNorm','MitkoNoNorm','MicroaneurysmDetectionEophtha','MSLesionUpsampledCHB_copy','MSLesionUpsampledUNC_copy'};
 
-datasetFilesToInclude = {'AVClassificationDRIVE','VesselSegmentationDRIVE','MitkoNorm','MitkoNoNorm','MicroaneurysmDetectionEophtha'};
-%datasetFilesToInclude = {'AVClassificationDRIVE','VesselSegmentationDRIVE','MitkoNorm','MicroaneurysmDetectionEophtha'};
+datasetFilesToInclude = {'AVClassificationDRIVE','VesselSegmentationDRIVE','MitkoNorm','MitkoNoNorm','MicroaneurysmDetectionEophtha','MSLesionUpsampledCHB_copy','MSLesionUpsampledUNC_copy'};
+
+
+
 
 metaDataAll = [];
 metaLabelNameAll = [];
@@ -153,24 +168,29 @@ metaDataRank = nan(size(metaDataAll));
 
 %Create extra dataset based on rank
 for i=1:size(metaDataAll,1)
-    metaDataRank(i,:) = tiedrank(metaDataAll(i,:));
+    %metaDataRank(i,:) = tiedrank(metaDataAll(i,:));
+    
+    perf = tiedrank(metaDataAll(i,:));
+    metaDataRank(i,:) = (perf-mean(perf))./std(perf);
 end
 
 %%
+close all;
+%tsneAcc = tsne(+metaDataAll); 
+%tsneAcc = prdataset(tsneAcc, metaLabelNameAll);
 
-tsneAcc = tsne(+metaDataAll); 
-tsneRank = tsne(+metaDataRank,[],[],5);  %TODO: tSNE is stochastic, need to actually do this a few times and select embedding with lowest loss
 
+tsneRank = tsne(+metaDataRank);  %TODO: tSNE is stochastic, need to actually do this a few times and select embedding with lowest loss
 tsneRank = prdataset(tsneRank, metaLabelNameAll);
-tsneAcc = prdataset(tsneAcc, metaLabelNameAll);
 
 
 
 ml = unique(metaLabelNameAll, 'rows');
-colors = [0.75 0 0; 0 0.75 0; 0 0 0.75; 0.75 0.5 0; 0.5 0 0.75];
- 
+colors = [0.75 0.5 0; 0.75 0 0.5; 0 0.75 0.5; 0.5 0.75 0; 0.5 0 0.75; 0 0.5 0.75; 0.5 0.5 0.5];
+    
+
 for i=1:size(ml,1)
-    c = seldat(tsneRank, ml(i,:)); 
+    c = seldat(tsneAcc, ml(i,:)); 
     scatter(+c(:,1), +c(:,2), 'MarkerEdgeColor', colors(i,:), 'MarkerFaceColor', colors(i,:));
     hold on;
 end
