@@ -1,9 +1,11 @@
-function sampledix = getBalancedSample(initialix, y, sizePerClass)
+function sampledix = getBalancedSample(initialix, y, sizeTotal)
 
 
 
 classLabels = unique(y);
 numClasses = numel(classLabels);
+
+sizePerClass = floor(sizeTotal/numClasses);
 
 sampledix=[];
 
