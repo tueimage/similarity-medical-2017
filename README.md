@@ -1,8 +1,12 @@
-# bmpv
+# Exploring the similarity of medical imaging classification problems
+
+Paper: https://link.springer.com/chapter/10.1007/978-3-319-67534-3_7
+arXiv: https://arxiv.org/abs/1706.03509
+
+Contact: v.cheplygina @ tue.nl
 
 
 Requires:
-
 
 Main toolboxes for running the experiments:
 https://github.com/vcheplygina/prtools
