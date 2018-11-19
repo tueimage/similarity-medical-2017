@@ -1,25 +1,23 @@
 %% Define paths, parameters etc
 clear all;
 
-datasetPath = 'C:\Users\Veronika\Dropbox\Papers\MICCAI 2017\data\';
-samplingPath = 'C:\Users\Veronika\Dropbox\Papers\MICCAI 2017\sampling\';
-resultPath = 'C:\Users\Veronika\Dropbox\Papers\MICCAI 2017\result\';
-metaPath = 'C:\Users\Veronika\Dropbox\Papers\MICCAI 2017\bmpv\metadata\';
-figurePath = 'C:\Users\Veronika\Dropbox\Papers\MICCAI 2017\bmpv\figure\';
+datasetPath = 'C:\Users\VCheplyg\Dropbox\Papers\MICCAI 2017\data\';
+samplingPath = 'C:\Users\VCheplyg\Dropbox\Papers\MICCAI 2017\sampling\';
+resultPath = 'C:\Users\VCheplyg\Dropbox\Papers\MICCAI 2017\result\';
+metaPath = 'C:\Users\VCheplyg\Dropbox\Papers\MICCAI 2017\bmpv\metadata\';
+figurePath = 'C:\Users\VCheplyg\Dropbox\Papers\MICCAI 2017\bmpv\figure\';
 
-datasetFiles = {'AVClassificationDRIVE','VesselSegmentationDRIVE','MitkoNorm','MitkoNoNorm','MicroaneurysmDetectionEophtha','MSLesionUpsampledCHB','MSLesionUpsampledUNC', 'Pim'};
-%datasetFiles = {'Pim'};
+datasetFiles = {'AVClassificationDRIVE','VesselSegmentationDRIVE','MitkoNorm','MitkoNoNorm','MicroaneurysmDetectionEophtha','Pim'};
 
-
-
-
+%Nearest mean, linear discriminant, quadratic discriminant, logistic,
+%random forest with 1 tree, 1-nearest neighbor
 uClasfs = {nmc, ldc, qdc, loglc2([],1), randomforestc2([],1)*classc, fnnc}; 
 
 numTrainTest = 20;
 trainingSizes = [100, 300, 1000, 3000, 10000];
 testSize = 10000;
 
-flagOverwrite = 0; %If = 0, do not recompute results (only needed if there is a bug etc)
+flagOverwrite = 0; %If = 0, do not recompute previous results - helpful for debugging
 
 
 %For plots etc
@@ -74,7 +72,7 @@ for i = 1:length(datasetFiles)
                 
                 save(fileName, 'indexTrainBagId','indexTestBagId', 'indexSubTrainInst','indexSubTestInst');
             else
-                %disp(['File ' fileName ' already exists, skipping']);
+                disp(['File ' fileName ' already exists, skipping']);
             end
 
         end    
@@ -252,7 +250,7 @@ export_fig(fullfile(figurePath, ['embedding.pdf']));
 load(fullfile(figurePath, ['embedding.mat']), 'tsneAcc', 'tsneRank', 'tsneScaled', 'mdsAcc', 'mdsRank', 'mdsScaled', 'allMetaLabel', 'niceNameMap');
 
 
-metaTrainSizes = [5 10 20 40 80];
+metaTrainSizes = [5 10 20 40 60];
 metaTries = 5;
 metaClasf = {scalem([],'variance')*knnc([],1), scalem([],'variance')*loglc2};
 
@@ -309,7 +307,7 @@ plot(metaTrainSizes, mdsAccErr.error(whichClasf,:), 's--', 'Color', c1, 'LineWid
 plot(metaTrainSizes, mdsRankErr.error(whichClasf,:), 's--', 'Color', c2, 'LineWidth', lw); hold on;
 plot(metaTrainSizes, mdsScaledErr.error(whichClasf,:), 's--', 'Color', c3, 'LineWidth', lw); hold on;
 
-ylim([0.1 0.8]);
+ylim([0 0.7]);
 title('Learning curves', 'interpreter', 'latex');
 legend({'Acc tSNE', 'Rank tSNE', 'Norm tSNE', 'Acc MDS', 'Rank MDS', 'Norm MDS'}, 'interpreter', 'latex');
 %legend({'Acc all', 'Rank all', 'Scale all', 'Acc tSNE', 'Rank tSNE', 'Scale tSNE', 'Acc MDS', 'Rank MDS', 'Scale MDS'}, 'interpreter', 'latex');
@@ -335,8 +333,8 @@ N = size(confusionMatrix,1);
 totals = repmat(sum(confusionMatrix,2), 1, size(confusionMatrix,2)); %Rows are the true class. Therefore we need to sum over the columns, so that the numbers per row add up to 1. 
 confusionMatrix = confusionMatrix ./ totals*100;
 
-c1 = cbrewer('seq', 'Reds', 8);              
-c2 = cbrewer('seq', 'YlGn', 8);
+c1 = cbrewer('seq', 'Reds', 24);              
+c2 = cbrewer('seq', 'YlGn', 24);
 c = [c1; c2];
 colormap(c);
 
@@ -350,7 +348,10 @@ midValue = mean(get(gca,'CLim'));  %# Get the middle value of the color range
 textColors = repmat(0,1,3); 
 set(hStrings,{'Color'},num2cell(textColors,2));  %# Change the text colors
 set(gca, 'yTickLabel', legendNames);
-xticklabel_rotate([1:N],45,legendNames,'interpreter','latex')
+set(gca, 'xTickLabel', legendNames);
+xticklabel_rotate([],45,[], 'interpreter','latex');
+
+%xticklabel_rotate([1:N],45,'XTickLabel',legendNames,'interpreter','latex')
 
 title('$\downarrow$ True, $\rightarrow$ Predicted', 'interpreter','latex');
 set(gca,'FontName', 'Georgia');
